@@ -20,6 +20,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String? selectedBackupPath;    // Path to the iPhone backup folder
   bool isProcessing = false;     // Flag to track if backup is being processed
   String? exportLocation;        // Path where files were actually exported
+  ExportFormat selectedFormat = ExportFormat.txt;  // Selected export format
 
   /// Handles the selection of the iPhone backup folder.
   /// 
@@ -121,7 +122,7 @@ class _HomeScreenState extends State<HomeScreen> {
   /// This method:
   /// 1. Validates that a backup folder is selected
   /// 2. Extracts SMS data using BackupService
-  /// 3. Exports the data to text files using SMSService
+  /// 3. Exports the data to files in the selected format using SMSService
   /// 4. Updates the UI with the export location
   Future<void> processBackup() async {
     if (selectedBackupPath == null) {
@@ -145,10 +146,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
       // Extract SMS data from backup
       final smsData = await backupService.extractSMSData(selectedBackupPath!);
-      // final smsData = await backupService.extractSMSData(selectedBackupPath!, messageLimit: 100); // ? For testing
       
-      // Export to text files (will automatically use desktop location)
-      final exportPath = await smsService.exportToTextFiles(smsData);
+      // Export to files in selected format
+      final exportPath = await smsService.exportToFiles(smsData, selectedFormat);
 
       setState(() {
         exportLocation = exportPath;
@@ -179,29 +179,19 @@ class _HomeScreenState extends State<HomeScreen> {
   /// 
   /// The UI consists of:
   /// 1. A card for selecting the iPhone backup folder
-  /// 2. A button to process the backup
-  /// 3. A card showing the export location and open folder button
+  /// 2. A card for selecting the export format
+  /// 3. A button to process the backup
+  /// 4. A card showing the export location and open folder button
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    
     return Scaffold(
       appBar: AppBar(
         title: const Text('iPhone SMS Transcriptor'),
-        backgroundColor: colorScheme.surface,
+        backgroundColor: Theme.of(context).colorScheme.surface,
         elevation: 0,
       ),
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              colorScheme.surface,
-              colorScheme.surfaceVariant.withOpacity(0.5),
-            ],
-          ),
-        ),
+        color: Theme.of(context).colorScheme.background,
         child: SafeArea(
           child: SingleChildScrollView(
             child: Padding(
@@ -224,16 +214,14 @@ class _HomeScreenState extends State<HomeScreen> {
                             children: [
                               Icon(
                                 Icons.backup,
-                                color: colorScheme.primary,
+                                color: Theme.of(context).colorScheme.primary,
                                 size: 28,
                               ),
                               const SizedBox(width: 12),
                               Text(
                                 'Select iPhone Backup',
-                                style: TextStyle(
-                                  fontSize: 24,
+                                style: Theme.of(context).textTheme.titleLarge?.copyWith(
                                   fontWeight: FontWeight.bold,
-                                  color: colorScheme.onSurface,
                                 ),
                               ),
                             ],
@@ -242,23 +230,22 @@ class _HomeScreenState extends State<HomeScreen> {
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: colorScheme.surfaceVariant.withOpacity(0.5),
+                              color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Row(
                               children: [
                                 Icon(
                                   Icons.info_outline,
-                                  color: colorScheme.primary,
+                                  color: Theme.of(context).colorScheme.primary,
                                   size: 16,
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
                                     'Default location: ${BackupService.defaultBackupPath}',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: colorScheme.onSurfaceVariant,
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                                     ),
                                   ),
                                 ),
@@ -267,7 +254,6 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           const SizedBox(height: 24),
                           Row(
-                            // mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               FilledButton.icon(
                                 onPressed: selectBackupFolder,
@@ -284,7 +270,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     'The folder should contain numbered folders (like "3d", "31", etc.)',
                                 child: Icon(
                                   Icons.info_outline,
-                                  color: colorScheme.primary,
+                                  color: Theme.of(context).colorScheme.primary,
                                   size: 24,
                                 ),
                               ),
@@ -295,22 +281,21 @@ class _HomeScreenState extends State<HomeScreen> {
                             Container(
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: colorScheme.primaryContainer.withOpacity(0.3),
+                                color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Row(
                                 children: [
                                   Icon(
                                     Icons.check_circle_outline,
-                                    color: colorScheme.primary,
+                                    color: Theme.of(context).colorScheme.primary,
                                     size: 16,
                                   ),
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: Text(
                                       'Selected: ${selectedBackupPath!.split(Platform.pathSeparator).last}',
-                                      style: TextStyle(
-                                        color: colorScheme.onSurface,
+                                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                         fontStyle: FontStyle.italic,
                                       ),
                                     ),
@@ -324,6 +309,77 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                   const SizedBox(height: 24),
+                  // Export format selection card
+                  Card(
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(24.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.format_list_bulleted,
+                                color: Theme.of(context).colorScheme.primary,
+                                size: 28,
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                'Export Format',
+                                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          Wrap(
+                            spacing: 8,
+                            children: [
+                              ChoiceChip(
+                                label: const Text('Text (.txt)'),
+                                selected: selectedFormat == ExportFormat.txt,
+                                onSelected: (selected) {
+                                  if (selected) {
+                                    setState(() {
+                                      selectedFormat = ExportFormat.txt;
+                                    });
+                                  }
+                                },
+                              ),
+                              ChoiceChip(
+                                label: const Text('CSV (.csv)'),
+                                selected: selectedFormat == ExportFormat.csv,
+                                onSelected: (selected) {
+                                  if (selected) {
+                                    setState(() {
+                                      selectedFormat = ExportFormat.csv;
+                                    });
+                                  }
+                                },
+                              ),
+                              ChoiceChip(
+                                label: const Text('JSON (.json)'),
+                                selected: selectedFormat == ExportFormat.json,
+                                onSelected: (selected) {
+                                  if (selected) {
+                                    setState(() {
+                                      selectedFormat = ExportFormat.json;
+                                    });
+                                  }
+                                },
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
                   // Process backup button
                   Center(
                     child: FilledButton.icon(
@@ -332,7 +388,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       label: const Text('Export SMS Data'),
                       style: FilledButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 32),
-                        textStyle: const TextStyle(fontSize: 16),
+                        textStyle: Theme.of(context).textTheme.titleMedium,
                       ),
                     ),
                   ),
@@ -343,13 +399,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Column(
                         children: [
                           CircularProgressIndicator(
-                            color: colorScheme.primary,
+                            color: Theme.of(context).colorScheme.primary,
                           ),
                           const SizedBox(height: 16),
                           Text(
                             'Processing backup...',
-                            style: TextStyle(
-                              color: colorScheme.onSurfaceVariant,
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
                             ),
                           ),
                         ],
@@ -373,16 +429,14 @@ class _HomeScreenState extends State<HomeScreen> {
                               children: [
                                 Icon(
                                   Icons.folder_zip,
-                                  color: colorScheme.primary,
+                                  color: Theme.of(context).colorScheme.primary,
                                   size: 28,
                                 ),
                                 const SizedBox(width: 12),
                                 Text(
                                   'Export Complete',
-                                  style: TextStyle(
-                                    fontSize: 24,
+                                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
                                     fontWeight: FontWeight.bold,
-                                    color: colorScheme.onSurface,
                                   ),
                                 ),
                               ],
@@ -391,23 +445,22 @@ class _HomeScreenState extends State<HomeScreen> {
                             Container(
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: colorScheme.surfaceVariant.withOpacity(0.5),
+                                color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Row(
                                 children: [
                                   Icon(
                                     Icons.folder_outlined,
-                                    color: colorScheme.primary,
+                                    color: Theme.of(context).colorScheme.primary,
                                     size: 16,
                                   ),
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: Text(
                                       'Location: $exportLocation',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: colorScheme.onSurfaceVariant,
+                                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                                       ),
                                     ),
                                   ),
@@ -421,8 +474,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                 icon: const Icon(Icons.folder_open),
                                 label: const Text('Open Export Folder'),
                                 style: FilledButton.styleFrom(
-                                  backgroundColor: colorScheme.primaryContainer,
-                                  foregroundColor: colorScheme.onPrimaryContainer,
+                                  backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                                  foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
                                   padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
                                 ),
                               ),
