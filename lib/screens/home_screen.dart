@@ -36,16 +36,19 @@ class _HomeScreenState extends State<HomeScreen> {
       
       String? selectedDirectory;
       if (defaultDir.existsSync()) {
-        // If default path exists, use it as the initial directory
-        // Convert path separators for Windows compatibility
-        final initialPath = Platform.isWindows 
-            ? defaultPath.replaceAll('/', '\\')
-            : defaultPath;
-            
-        selectedDirectory = await FilePicker.platform.getDirectoryPath(
-          dialogTitle: 'Select iPhone Backup Folder',
-          initialDirectory: initialPath,
-        );
+        // If default path exists, use its parent directory (the Backup folder)
+        final parentDir = Directory(path.dirname(defaultPath));
+        if (parentDir.existsSync()) {
+          selectedDirectory = await FilePicker.platform.getDirectoryPath(
+            dialogTitle: 'Select iPhone Backup Folder',
+            initialDirectory: parentDir.path,
+          );
+        } else {
+          // If parent doesn't exist, open from home directory
+          selectedDirectory = await FilePicker.platform.getDirectoryPath(
+            dialogTitle: 'Select iPhone Backup Folder',
+          );
+        }
       } else {
         // If default path doesn't exist, try parent directory
         final parentDir = Directory(path.dirname(defaultPath));
@@ -180,118 +183,259 @@ class _HomeScreenState extends State<HomeScreen> {
   /// 3. A card showing the export location and open folder button
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return Scaffold(
       appBar: AppBar(
         title: const Text('iPhone SMS Transcriptor'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        backgroundColor: colorScheme.surface,
+        elevation: 0,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Backup folder selection card
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Select iPhone Backup',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Default location: ${BackupService.defaultBackupPath}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      // mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        ElevatedButton.icon(
-                          onPressed: selectBackupFolder,
-                          icon: const Icon(Icons.folder_open),
-                          label: const Text('Choose Backup Folder'),
-                        ),
-                        const SizedBox(width: 8),
-                        const Tooltip(
-                          message: 'Select the folder containing your iPhone backup.\n'
-                              'Example path: C:\\Users\\YourName\\AppData\\Roaming\\Apple Computer\\MobileSync\\Backup\\00008110-001919682E91A01E\n'
-                              'The folder should contain numbered folders (like "3d", "31", etc.)',
-                          child: Icon(
-                            Icons.info_outline,
-                            color: Colors.blue,
-                            size: 20,
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (selectedBackupPath != null) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        'Selected: ${selectedBackupPath!.split(Platform.pathSeparator).last}',
-                        style: const TextStyle(fontStyle: FontStyle.italic),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            // Process backup button
-            ElevatedButton.icon(
-              onPressed: isProcessing ? null : processBackup,
-              icon: const Icon(Icons.download),
-              label: const Text('Export SMS Data'),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.all(16),
-              ),
-            ),
-            // Loading indicator
-            if (isProcessing)
-              const Padding(
-                padding: EdgeInsets.all(16.0),
-                child: Center(child: CircularProgressIndicator()),
-              ),
-            // Export location card
-            if (exportLocation != null) ...[
-              const SizedBox(height: 16),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Exported to: $exportLocation',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      ElevatedButton.icon(
-                        onPressed: openExportFolder,
-                        icon: const Icon(Icons.folder_open),
-                        label: const Text('Open Export Folder'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              colorScheme.surface,
+              colorScheme.surfaceVariant.withOpacity(0.5),
             ],
-          ],
+          ),
+        ),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Backup folder selection card
+                  Card(
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(24.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.backup,
+                                color: colorScheme.primary,
+                                size: 28,
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                'Select iPhone Backup',
+                                style: TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  color: colorScheme.onSurface,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: colorScheme.surfaceVariant.withOpacity(0.5),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.info_outline,
+                                  color: colorScheme.primary,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Default location: ${BackupService.defaultBackupPath}',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          Row(
+                            // mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              FilledButton.icon(
+                                onPressed: selectBackupFolder,
+                                icon: const Icon(Icons.folder_open),
+                                label: const Text('Choose Backup Folder'),
+                                style: FilledButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Tooltip(
+                                message: 'Select the folder containing your iPhone backup.\n'
+                                    'Example path: C:\\Users\\YourName\\AppData\\Roaming\\Apple Computer\\MobileSync\\Backup\\00008110-001919682E91A01E\n'
+                                    'The folder should contain numbered folders (like "3d", "31", etc.)',
+                                child: Icon(
+                                  Icons.info_outline,
+                                  color: colorScheme.primary,
+                                  size: 24,
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (selectedBackupPath != null) ...[
+                            const SizedBox(height: 16),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: colorScheme.primaryContainer.withOpacity(0.3),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.check_circle_outline,
+                                    color: colorScheme.primary,
+                                    size: 16,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Selected: ${selectedBackupPath!.split(Platform.pathSeparator).last}',
+                                      style: TextStyle(
+                                        color: colorScheme.onSurface,
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  // Process backup button
+                  Center(
+                    child: FilledButton.icon(
+                      onPressed: isProcessing ? null : processBackup,
+                      icon: const Icon(Icons.download),
+                      label: const Text('Export SMS Data'),
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 32),
+                        textStyle: const TextStyle(fontSize: 16),
+                      ),
+                    ),
+                  ),
+                  // Loading indicator
+                  if (isProcessing) ...[
+                    const SizedBox(height: 24),
+                    Center(
+                      child: Column(
+                        children: [
+                          CircularProgressIndicator(
+                            color: colorScheme.primary,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Processing backup...',
+                            style: TextStyle(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  // Export location card
+                  if (exportLocation != null) ...[
+                    const SizedBox(height: 24),
+                    Card(
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(24.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.folder_zip,
+                                  color: colorScheme.primary,
+                                  size: 28,
+                                ),
+                                const SizedBox(width: 12),
+                                Text(
+                                  'Export Complete',
+                                  style: TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    color: colorScheme.onSurface,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: colorScheme.surfaceVariant.withOpacity(0.5),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.folder_outlined,
+                                    color: colorScheme.primary,
+                                    size: 16,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Location: $exportLocation',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: colorScheme.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Center(
+                              child: FilledButton.icon(
+                                onPressed: openExportFolder,
+                                icon: const Icon(Icons.folder_open),
+                                label: const Text('Open Export Folder'),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: colorScheme.primaryContainer,
+                                  foregroundColor: colorScheme.onPrimaryContainer,
+                                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );

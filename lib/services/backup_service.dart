@@ -211,40 +211,47 @@ class BackupService {
     for (var message in messages) {
       final handleId = message['handle_id'];
       final chatId = message['chat_id'];
+      final isFromMe = message['is_from_me'] == 1;
       
       // Get the phone number for this message
-      final List<Map<String, dynamic>> handle = await db.query(
-        'handle',
-        where: 'ROWID = ?',
-        whereArgs: [handleId],
-      );
-
-      if (handle.isNotEmpty) {
-        final phoneNumber = handle[0]['id'];
-        final contactName = findContactName(phoneNumber, contactMap);
-        
-        // Get chat information
-        final chat = chatInfo[chatId];
-        final isGroupChat = chat?['isGroupChat'] ?? false;
-        final groupName = chat?['groupName'];
-        final participants = (chat?['participants'] as List<dynamic>?)?.map((p) => p.toString()).toList() ?? [phoneNumber];
-        
-        // Create SMSMessage object
-        smsMessages.add(SMSMessage(
-          id: message['ROWID'].toString(),
-          text: message['text'] ?? '',
-          phoneNumber: phoneNumber,
-          isFromMe: message['is_from_me'] == 1,
-          timestamp: DateTime.fromMillisecondsSinceEpoch(
-            ((message['date'] as int) ~/ 1000000) + 978307200000
-          ),
-          contactName: contactName,
-          isGroupChat: isGroupChat,
-          chatId: chatId?.toString() ?? 'unknown',
-          groupName: groupName,
-          participants: participants,
-        ));
+      String phoneNumber;
+      if (isFromMe) {
+        // For messages from the user, we'll use a placeholder phone number
+        // since handle_id might be null for user's messages
+        phoneNumber = 'me';
+      } else {
+        final List<Map<String, dynamic>> handle = await db.query(
+          'handle',
+          where: 'ROWID = ?',
+          whereArgs: [handleId],
+        );
+        if (handle.isEmpty) continue;
+        phoneNumber = handle[0]['id'];
       }
+
+      final contactName = isFromMe ? 'Me' : findContactName(phoneNumber, contactMap);
+      
+      // Get chat information
+      final chat = chatInfo[chatId];
+      final isGroupChat = chat?['isGroupChat'] ?? false;
+      final groupName = chat?['groupName'];
+      final participants = (chat?['participants'] as List<dynamic>?)?.map((p) => p.toString()).toList() ?? [phoneNumber];
+      
+      // Create SMSMessage object
+      smsMessages.add(SMSMessage(
+        id: message['ROWID'].toString(),
+        text: message['text'] ?? '',
+        phoneNumber: phoneNumber,
+        isFromMe: isFromMe,
+        timestamp: DateTime.fromMillisecondsSinceEpoch(
+          ((message['date'] as int) ~/ 1000000) + 978307200000
+        ),
+        contactName: contactName,
+        isGroupChat: isGroupChat,
+        chatId: chatId?.toString() ?? 'unknown',
+        groupName: groupName,
+        participants: participants,
+      ));
     }
 
     // print('Processed ${smsMessages.length} messages successfully');
