@@ -65,10 +65,6 @@ class _HomeScreenState extends State<HomeScreen> {
       if (selectedDirectory != null) {
         // Verify this is a valid iPhone backup by checking for SMS database
         final smsDbPath = File(path.join(selectedDirectory, '3d', '3d0d7e5fb2ce288813306e4d4636395e047a3d28'));
-        // print('Checking path: ${smsDbPath.path}');
-        // print('Path exists: ${smsDbPath.existsSync()}');
-        // print('Parent directory exists: ${Directory(path.dirname(smsDbPath.path)).existsSync()}');
-        // print('Parent directory contents: ${Directory(path.dirname(smsDbPath.path)).listSync().map((e) => e.path).join('\n')}');
         
         if (!smsDbPath.existsSync()) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -146,12 +142,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
       // Extract SMS data from backup
       final smsData = await backupService.extractSMSData(selectedBackupPath!);
-      // final smsData = await backupService.extractSMSData(selectedBackupPath!, messageLimit: 100);
+      // final smsData = await backupService.extractSMSData(selectedBackupPath!, messageLimit: 100); // ? For testing
       
       // Export to text files (will automatically use desktop location)
       final exportPath = await smsService.exportToTextFiles(smsData);
-
-      // print('SMSData: $smsData');
 
       setState(() {
         exportLocation = exportPath;
@@ -211,18 +205,34 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Text(
+                    const Text(
                       'Default location: ${BackupService.defaultBackupPath}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         color: Colors.grey,
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    ElevatedButton.icon(
-                      onPressed: isProcessing ? null : selectBackupFolder,
-                      icon: const Icon(Icons.folder_open),
-                      label: const Text('Choose Backup Folder'),
+                    const SizedBox(height: 8),
+                    Row(
+                      // mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        ElevatedButton.icon(
+                          onPressed: selectBackupFolder,
+                          icon: const Icon(Icons.folder_open),
+                          label: const Text('Choose Backup Folder'),
+                        ),
+                        const SizedBox(width: 8),
+                        const Tooltip(
+                          message: 'Select the folder containing your iPhone backup.\n'
+                              'Example path: C:\\Users\\YourName\\AppData\\Roaming\\Apple Computer\\MobileSync\\Backup\\00008110-001919682E91A01E\n'
+                              'The folder should contain numbered folders (like "3d", "31", etc.)',
+                          child: Icon(
+                            Icons.info_outline,
+                            color: Colors.blue,
+                            size: 20,
+                          ),
+                        ),
+                      ],
                     ),
                     if (selectedBackupPath != null) ...[
                       const SizedBox(height: 8),
