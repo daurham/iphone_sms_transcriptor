@@ -22,47 +22,78 @@ class SMSService {
   /// [exportPath] - Optional path where files should be exported
   /// Returns the path where files were exported
   Future<String> exportToTextFiles(List<SMSMessage> messages, {String? exportPath}) async {
-    // Group messages by conversation
-    final Map<String, List<SMSMessage>> conversations = {};
+    print('Starting export of ${messages.length} messages');
     
+    // Group messages by chat_id
+    final Map<String, List<SMSMessage>> conversations = {};
+
     for (var message in messages) {
-      // Use group name for group chats, phone number for direct messages
-      final key = message.isGroupChat 
-          ? 'Group_${message.groupName ?? "Chat"}'
-          : message.phoneNumber;
-          
+      // Use chat_id as the key for grouping
+      final key = message.chatId;
+      
       if (!conversations.containsKey(key)) {
         conversations[key] = [];
       }
       conversations[key]!.add(message);
     }
 
-    // Create export directory
-    final exportDir = exportPath ?? await _getDefaultExportPath();
-    await Directory(exportDir).create(recursive: true);
+    // print('Grouped into ${conversations.length} conversations');
+
+    // Create export directory with numbered folder
+    final baseExportDir = exportPath ?? await _getDefaultExportPath();
+    // print('Base export directory: $baseExportDir');
+    
+    final exportDir = await _getNextExportDirectory(baseExportDir);
+    // print('Final export directory: $exportDir');
+    
+    final directory = Directory(exportDir);
+    if (!await directory.exists()) {
+      print('Creating export directory');
+      await directory.create(recursive: true);
+    }
 
     // Export each conversation
     for (var entry in conversations.entries) {
-      final conversationKey = entry.key;
       final messages = entry.value;
+      if (messages.isEmpty) continue;
+
+      // Get conversation info from first message
+      final firstMessage = messages.first;
+      final isGroupChat = firstMessage.isGroupChat;
+      final groupName = firstMessage.groupName;
+      final participants = firstMessage.participants;
 
       // Create safe filename
-      final safeFileName = conversationKey
+      String displayName;
+      if (isGroupChat) {
+        displayName = 'Group Chat: ${groupName ?? "Unnamed Group"}';
+      } else {
+        // For direct messages, use the contact name or phone number
+        displayName = firstMessage.contactName ?? firstMessage.phoneNumber;
+      }
+
+      final safeFileName = displayName
           .replaceAll(RegExp(r'[<>:"/\\|?*]'), '_')
           .replaceAll(RegExp(r'\s+'), '_');
       
       final filePath = path.join(exportDir, '$safeFileName.txt');
+      // print('Writing to file: $filePath');
+      
       final file = File(filePath);
 
       // Write messages to file
       final buffer = StringBuffer();
       
       // Add header for group chats
-      if (messages.first.isGroupChat) {
-        buffer.writeln('Group Chat: ${messages.first.groupName}');
+      if (isGroupChat) {
+        buffer.writeln('Group Chat: ${groupName ?? "Unnamed Group"}');
         buffer.writeln('Participants:');
-        for (var participant in messages.first.participants) {
-          buffer.writeln('- $participant');
+        for (var participant in participants) {
+          // Try to find contact name for participant
+          final contactName = messages
+              .firstWhere((m) => m.phoneNumber == participant, orElse: () => messages.first)
+              .contactName;
+          buffer.writeln('- ${contactName ?? participant}');
         }
         buffer.writeln('-' * 50);
         buffer.writeln();
@@ -85,20 +116,70 @@ class SMSService {
         buffer.writeln();
       }
 
-      await file.writeAsString(buffer.toString());
+      try {
+        await file.writeAsString(buffer.toString());
+        // print('Successfully wrote file: $filePath');
+      } catch (e) {
+        print('Error writing file $filePath: $e');
+      }
     }
 
+    // print('Export completed to: $exportDir');
     return exportDir;
   }
 
-  /// Gets the default export path in the user's documents directory.
+  /// Gets the default export path in the user's desktop directory.
   /// 
   /// Returns the path to the default export directory
   Future<String> _getDefaultExportPath() async {
-    final documentsPath = Platform.isWindows
-        ? path.join(Platform.environment['USERPROFILE'] ?? '', 'Documents')
-        : path.join(Platform.environment['HOME'] ?? '', 'Documents');
+    final desktopPath = Platform.isWindows
+        ? path.join(Platform.environment['USERPROFILE'] ?? '', 'Desktop')
+        : path.join(Platform.environment['HOME'] ?? '', 'Desktop');
         
-    return path.join(documentsPath, 'iPhone_SMS_Export');
+    return path.join(desktopPath, 'iPhone_SMS_Export');
+  }
+
+  /// Finds the next available numbered export directory.
+  /// 
+  /// This method:
+  /// 1. Checks for existing numbered directories in the base path
+  /// 2. Returns the path for the next available number
+  /// 
+  /// [basePath] - The base directory where numbered folders should be created
+  /// Returns the path for the next available numbered directory
+  Future<String> _getNextExportDirectory(String basePath) async {
+    final baseDir = Directory(basePath);
+    if (!await baseDir.exists()) {
+      return path.join(basePath, 'exported_sms_records_1');
+    }
+
+    // Get all existing numbered directories
+    final existingDirs = await baseDir
+        .list()
+        .where((entity) => 
+            entity is Directory && 
+            entity.path.contains('exported_sms_records_'))
+        .map((entity) => entity.path)
+        .toList();
+
+    // Extract numbers from directory names
+    final numbers = existingDirs
+        .map((dir) {
+          final match = RegExp(r'exported_sms_records_(\d+)$')
+              .firstMatch(path.basename(dir));
+          return match != null ? int.tryParse(match.group(1)!) : null;
+        })
+        .where((num) => num != null)
+        .map((num) => num!)
+        .toList();
+
+    // Find the next available number
+    int nextNumber = 1;
+    if (numbers.isNotEmpty) {
+      numbers.sort();
+      nextNumber = numbers.last + 1;
+    }
+
+    return path.join(basePath, 'exported_sms_records_$nextNumber');
   }
 } 

@@ -18,7 +18,6 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   // State variables to track selected paths and processing status
   String? selectedBackupPath;    // Path to the iPhone backup folder
-  String? selectedExportPath;    // Path where SMS files will be exported
   bool isProcessing = false;     // Flag to track if backup is being processed
   String? exportLocation;        // Path where files were actually exported
 
@@ -65,7 +64,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (selectedDirectory != null) {
         // Verify this is a valid iPhone backup by checking for SMS database
-        final smsDbPath = Directory(path.join(selectedDirectory, '3d', '3d0d7e5fb2ce288813306e4d4636395e047a3d28'));
+        final smsDbPath = File(path.join(selectedDirectory, '3d', '3d0d7e5fb2ce288813306e4d4636395e047a3d28'));
+        // print('Checking path: ${smsDbPath.path}');
+        // print('Path exists: ${smsDbPath.existsSync()}');
+        // print('Parent directory exists: ${Directory(path.dirname(smsDbPath.path)).existsSync()}');
+        // print('Parent directory contents: ${Directory(path.dirname(smsDbPath.path)).listSync().map((e) => e.path).join('\n')}');
+        
         if (!smsDbPath.existsSync()) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -76,50 +80,15 @@ class _HomeScreenState extends State<HomeScreen> {
           return;
         }
 
-        // Update only the backup path, preserving export path
         setState(() {
           selectedBackupPath = selectedDirectory;
-          selectedExportPath = selectedExportPath;
         });
       }
     } catch (e) {
+      print('Error selecting folder: ${e.toString()}');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error selecting folder: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  /// Handles the selection of the export location for SMS files.
-  /// 
-  /// This method:
-  /// 1. Opens a folder picker dialog starting in the user's Documents folder
-  /// 2. Updates the UI with the selected export path
-  Future<void> selectExportFolder() async {
-    try {
-      // Start from user's Documents folder
-      final documentsPath = Platform.isWindows
-          ? path.join(Platform.environment['USERPROFILE'] ?? '', 'Documents')
-          : path.join(Platform.environment['HOME'] ?? '', 'Documents');
-
-      final selectedDirectory = await FilePicker.platform.getDirectoryPath(
-        dialogTitle: 'Select Export Location',
-        initialDirectory: documentsPath,
-      );
-
-      if (selectedDirectory != null) {
-        // Update only the export path, preserving backup path
-        setState(() {
-          selectedExportPath = selectedDirectory;
-          selectedBackupPath = selectedBackupPath;
-        });
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error selecting export location: ${e.toString()}'),
           backgroundColor: Colors.red,
         ),
       );
@@ -138,6 +107,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
     } else {
+      print('Error opening export folder: ${uri.toString()}');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Error opening export folder'),
@@ -156,6 +126,7 @@ class _HomeScreenState extends State<HomeScreen> {
   /// 4. Updates the UI with the export location
   Future<void> processBackup() async {
     if (selectedBackupPath == null) {
+      print('No backup path selected');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please select a backup folder first'),
@@ -175,12 +146,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
       // Extract SMS data from backup
       final smsData = await backupService.extractSMSData(selectedBackupPath!);
+      // final smsData = await backupService.extractSMSData(selectedBackupPath!, messageLimit: 100);
       
-      // Export to text files
-      final exportPath = await smsService.exportToTextFiles(
-        smsData,
-        exportPath: selectedExportPath,
-      );
+      // Export to text files (will automatically use desktop location)
+      final exportPath = await smsService.exportToTextFiles(smsData);
+
+      // print('SMSData: $smsData');
 
       setState(() {
         exportLocation = exportPath;
@@ -193,6 +164,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
     } catch (e) {
+      print('Error processing backup: ${e.toString()}');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error processing backup: ${e.toString()}'),
@@ -210,9 +182,8 @@ class _HomeScreenState extends State<HomeScreen> {
   /// 
   /// The UI consists of:
   /// 1. A card for selecting the iPhone backup folder
-  /// 2. A card for selecting the export location
-  /// 3. A button to process the backup
-  /// 4. A card showing the export location and open folder button
+  /// 2. A button to process the backup
+  /// 3. A card showing the export location and open folder button
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -257,46 +228,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(height: 8),
                       Text(
                         'Selected: ${selectedBackupPath!.split(Platform.pathSeparator).last}',
-                        style: const TextStyle(fontStyle: FontStyle.italic),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            // Export location selection card
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Select Export Location',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Choose where to save the exported SMS files',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton.icon(
-                      onPressed: isProcessing ? null : selectExportFolder,
-                      icon: const Icon(Icons.save),
-                      label: const Text('Choose Export Location'),
-                    ),
-                    if (selectedExportPath != null) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        'Selected: ${selectedExportPath!.split(Platform.pathSeparator).last}',
                         style: const TextStyle(fontStyle: FontStyle.italic),
                       ),
                     ],
