@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:path/path.dart' as path;
 import '../services/backup_service.dart';
 import '../services/sms_service.dart';
+import '../services/config_service.dart';
 
 /// The main screen of the application that handles user interaction for
 /// selecting backup folders, export locations, and processing the SMS data.
@@ -21,6 +22,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool isProcessing = false;     // Flag to track if backup is being processed
   String? exportLocation;        // Path where files were actually exported
   ExportFormat selectedFormat = ExportFormat.txt;  // Selected export format
+  final ConfigService _configService = ConfigService();
 
   /// Handles the selection of the iPhone backup folder.
   /// 
@@ -142,7 +144,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     try {
       final backupService = BackupService();
-      final smsService = SMSService();
+      final smsService = SMSService(configService: _configService);
 
       // Extract SMS data from backup
       final smsData = await backupService.extractSMSData(selectedBackupPath!);
@@ -381,36 +383,40 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 24),
                   // Process backup button
-                  Center(
-                    child: FilledButton.icon(
-                      onPressed: isProcessing ? null : processBackup,
-                      icon: const Icon(Icons.download),
-                      label: const Text('Export SMS Data'),
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 32),
-                        textStyle: Theme.of(context).textTheme.titleMedium,
-                      ),
-                    ),
-                  ),
-                  // Loading indicator
-                  if (isProcessing) ...[
-                    const SizedBox(height: 24),
+                  if (selectedBackupPath != null) ...[
                     Center(
-                      child: Column(
-                        children: [
-                          CircularProgressIndicator(
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Processing backup...',
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
+                      child: FilledButton.icon(
+                        onPressed: isProcessing ? null : processBackup,
+                        icon: const Icon(Icons.download),
+                        label: const Text('Export SMS Data'),
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 32),
+                          textStyle: Theme.of(context).textTheme.titleMedium,
+                          backgroundColor: Colors.green,
+                          foregroundColor: Colors.white,
+                        ),
                       ),
                     ),
+                    // Loading indicator
+                    if (isProcessing) ...[
+                      const SizedBox(height: 24),
+                      Center(
+                        child: Column(
+                          children: [
+                            CircularProgressIndicator(
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Processing backup...',
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
                   // Export location card
                   if (exportLocation != null) ...[

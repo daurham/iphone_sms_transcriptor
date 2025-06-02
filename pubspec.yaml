@@ -17,6 +17,7 @@ dependencies:
   path: ^1.8.3
   permission_handler: ^11.0.1
   url_launcher: ^6.2.4
+  window_manager: ^0.3.8
 
 dev_dependencies:
   flutter_test:

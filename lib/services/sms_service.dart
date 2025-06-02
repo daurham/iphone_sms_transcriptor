@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:path/path.dart' as path;
 import '../models/sms_message.dart';
+import 'config_service.dart';
 
 /// Supported export formats for SMS messages
 enum ExportFormat {
@@ -18,6 +19,10 @@ enum ExportFormat {
 /// - Creating and managing export directories
 /// - Writing messages to text files
 class SMSService {
+
+  final ConfigService _configService;
+  SMSService({ConfigService? configService}) 
+      : _configService = configService ?? ConfigService();
   /// Exports SMS messages to files in the specified format.
   /// 
   /// This method:
@@ -30,6 +35,10 @@ class SMSService {
   /// [format] - The format to export the messages in
   /// [exportPath] - Optional path where files should be exported
   /// Returns the path where files were exported
+
+
+
+
   Future<String> exportToFiles(List<SMSMessage> messages, ExportFormat format, {String? exportPath}) async {
     print('Starting export of ${messages.length} messages in $format format');
     
@@ -73,9 +82,7 @@ class SMSService {
         displayName = firstMessage.contactName ?? firstMessage.phoneNumber;
       }
 
-      final safeFileName = displayName
-          .replaceAll(RegExp(r'[<>:"/\\|?*]'), '_')
-          .replaceAll(RegExp(r'\s+'), '_');
+      final safeFileName = _sanitizeFileName(displayName);
       
       // Get file extension based on format
       final extension = format.toString().split('.').last;
@@ -175,11 +182,17 @@ class SMSService {
       'isGroupChat': isGroupChat,
       'groupName': groupName,
       'participants': participants,
-      'messages': messages.map((m) => {
-        'timestamp': m.timestamp.toIso8601String(),
-        'sender': m.isFromMe ? 'Me' : (m.contactName ?? m.phoneNumber),
-        'text': m.text,
-        'isFromMe': m.isFromMe,
+      'messages': messages.map((m) {
+        final timestamp = m.timestamp;
+        final formattedTime = '${timestamp.year}-${timestamp.month.toString().padLeft(2, '0')}-${timestamp.day.toString().padLeft(2, '0')} ${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}';
+        
+        return {
+          'timestamp': m.timestamp.toIso8601String(),
+          'time': formattedTime,
+          'sender': m.isFromMe ? 'Me' : (m.contactName ?? m.phoneNumber),
+          'text': m.text,
+          'isFromMe': m.isFromMe,
+        };
       }).toList(),
     };
 
@@ -193,6 +206,18 @@ class SMSService {
         : path.join(Platform.environment['HOME'] ?? '', 'Desktop');
         
     return path.join(desktopPath, 'iPhone_SMS_Export');
+  }
+
+  /// Sanitizes a filename to be valid on the current platform
+  String _sanitizeFileName(String fileName) {
+    // Common invalid characters across platforms
+    final invalidChars = Platform.isWindows
+        ? RegExp(r'[<>:"/\\|?*]')
+        : RegExp(r'[/:]');
+    
+    return fileName
+        .replaceAll(invalidChars, '_')
+        .replaceAll(RegExp(r'\s+'), '_');
   }
 
   /// Finds the next available numbered export directory.
