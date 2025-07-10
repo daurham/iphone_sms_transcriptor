@@ -197,9 +197,21 @@ class BackupService {
     // Get messages with optional limit
     // print('Querying messages table${messageLimit != null ? ' (limit: $messageLimit)' : ''}...');
     final List<Map<String, dynamic>> messages = await db.rawQuery('''
-      SELECT m.ROWID, m.text, m.handle_id, m.is_from_me, m.date, cmj.chat_id
+      SELECT 
+        m.ROWID,
+        m.text,
+        m.handle_id,
+        m.is_from_me,
+        m.date,
+        m.service,
+        COALESCE(
+          (SELECT chat_id FROM chat_message_join WHERE message_id = m.ROWID LIMIT 1),
+          (SELECT ROWID FROM chat WHERE ROWID = (
+            SELECT chat_id FROM chat_handle_join WHERE handle_id = m.handle_id LIMIT 1
+          ))
+        ) as chat_id
       FROM message m
-      LEFT JOIN chat_message_join cmj ON m.ROWID = cmj.message_id
+      WHERE m.text IS NOT NULL
       ORDER BY m.date DESC
       ${messageLimit != null ? 'LIMIT $messageLimit' : ''}
     ''');
@@ -212,12 +224,11 @@ class BackupService {
       final handleId = message['handle_id'];
       final chatId = message['chat_id'];
       final isFromMe = message['is_from_me'] == 1;
+      final service = message['service'] as String?;
       
       // Get the phone number for this message
       String phoneNumber;
       if (isFromMe) {
-        // For messages from the user, we'll use a placeholder phone number
-        // since handle_id might be null for user's messages
         phoneNumber = 'me';
       } else {
         final List<Map<String, dynamic>> handle = await db.query(
@@ -251,6 +262,7 @@ class BackupService {
         chatId: chatId?.toString() ?? 'unknown',
         groupName: groupName,
         participants: participants,
+        service: service ?? 'unknown',
       ));
     }
 

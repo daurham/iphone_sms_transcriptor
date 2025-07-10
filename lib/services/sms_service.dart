@@ -141,8 +141,13 @@ class SMSService {
       final sender = message.isFromMe 
           ? 'Me' 
           : (message.contactName ?? message.phoneNumber);
+
+      // TODO: Remove this after testing
+      if (sender == 'Corey Sachak' && message.service == 'iMessage' && message.isGroupChat == false) {
+        print('Corey Sachak: ${message.text}');
+      }
           
-      buffer.writeln('[$formattedTime] $sender:');
+      buffer.writeln('[$formattedTime] $sender (${message.service}):');
       buffer.writeln(message.text);
       buffer.writeln();
     }
@@ -155,7 +160,7 @@ class SMSService {
     final buffer = StringBuffer();
     
     // Add header
-    buffer.writeln('Timestamp,Sender,Message,Is Group Chat,Group Name,Participants');
+    buffer.writeln('Timestamp,Sender,Message,Service,Is Group Chat,Group Name,Participants');
     
     for (var message in messages) {
       final timestamp = message.timestamp;
@@ -170,7 +175,7 @@ class SMSService {
       final escapedGroupName = (groupName ?? '').replaceAll('"', '""');
       final escapedParticipants = participants.join(';').replaceAll('"', '""');
       
-      buffer.writeln('"$formattedTime","$sender","$escapedText","$isGroupChat","$escapedGroupName","$escapedParticipants"');
+      buffer.writeln('"$formattedTime","$sender","$escapedText","${message.service}","$isGroupChat","$escapedGroupName","$escapedParticipants"');
     }
 
     return buffer.toString();
@@ -192,6 +197,7 @@ class SMSService {
           'sender': m.isFromMe ? 'Me' : (m.contactName ?? m.phoneNumber),
           'text': m.text,
           'isFromMe': m.isFromMe,
+          'service': m.service,
         };
       }).toList(),
     };

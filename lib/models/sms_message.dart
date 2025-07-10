@@ -36,6 +36,9 @@ class SMSMessage {
   /// List of phone numbers of all participants in the chat
   final List<String> participants;
 
+  /// The service type of the message (SMS or iMessage)
+  final String service;
+
   /// Creates a new SMSMessage instance.
   /// 
   /// [id] - The unique message identifier
@@ -48,6 +51,7 @@ class SMSMessage {
   /// [chatId] - The chat identifier
   /// [groupName] - Optional name of the group chat
   /// [participants] - List of all chat participants' phone numbers
+  /// [service] - The service type of the message (SMS or iMessage)
   SMSMessage({
     required this.id,
     required this.text,
@@ -59,6 +63,7 @@ class SMSMessage {
     required this.chatId,
     this.groupName,
     required this.participants,
+    required this.service,
   });
 
   /// Creates an SMSMessage from a map of data (typically from SQLite database).
@@ -74,6 +79,7 @@ class SMSMessage {
   ///   - chatId: The chat identifier
   ///   - groupName: Optional group chat name
   ///   - participants: List of participant phone numbers
+  ///   - service: The service type of the message (SMS or iMessage)
   factory SMSMessage.fromMap(Map<String, dynamic> map) {
     return SMSMessage(
       id: map['id'].toString(),
@@ -86,6 +92,7 @@ class SMSMessage {
       chatId: map['chatId'].toString(),
       groupName: map['groupName'],
       participants: List<String>.from(map['participants'] ?? []),
+      service: map['service'] ?? 'unknown',
     );
   }
 
@@ -104,6 +111,7 @@ class SMSMessage {
       'chatId': chatId,
       'groupName': groupName,
       'participants': participants,
+      'service': service,
     };
   }
 
